@@ -1,0 +1,31 @@
+version: '3.9'
+services:
+
+  flask:
+    build:
+      dockerfile: ./docker/Dockerfile
+      context: .
+    environment:
+      REDIS_HOST: redis
+      REDIS_AUTH: $REDIS_AUTH
+    # Override command for development code reload
+    command: [ "uvicorn", "app:app","--host","0.0.0.0","--port", "5000", "--reload" ]
+    ports:
+      - ${SERVICE_PORT:-5000}:5000
+    volumes:
+      - ./src:/app
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:6.2-alpine
+    restart: always
+    ports:
+      - ${SERVICE_PORT:-6379}:6379
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_AUTH}
+    volumes:
+      - redis:/data
+
+volumes:
+  redis:
+    driver: local

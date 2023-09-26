@@ -1,0 +1,46 @@
+{{- if .Values.cronJob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "croatia-police.fullname" . }}
+  labels:
+    {{- include "croatia-police.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.cronJob.schedule | squote }}
+  jobTemplate:
+    spec:
+      template:
+        {{- if or .Values.cronJob.podAnnotations .Values.cronJob.podLabels }}
+        metadata:
+          {{- with .Values.cronJob.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.cronJob.podLabels }}
+          labels:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        spec:
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+          - name: cron
+            image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+            imagePullPolicy: IfNotPresent
+            {{- with .Values.cronJob.command }}
+            command:
+              {{- toYaml . | nindent 16 }}
+            {{- end }}
+            {{- with .Values.cronJob.args }}
+            args:
+              {{- toYaml . | nindent 16 }}
+            {{- end }}
+            {{- with .Values.cronJob.env }}
+            env:
+              {{- toYaml . | nindent 16 }}
+            {{- end }}
+          restartPolicy: Never
+  {{- end }}

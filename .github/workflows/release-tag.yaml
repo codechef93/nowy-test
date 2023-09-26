@@ -1,0 +1,25 @@
+name: Re-tag images and Publish
+
+# Release tags with suffix -rc are deployed to staging and without to production
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+
+  re-tag:
+    name: Re-tag images
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+
+      - name: Re-tag image with release version
+        run: echo "@todo"
+#        uses: cloudbeds/composite-actions/docker/crane-re-tag/aws-ecr@v2
+#        with:
+#          image_name: ${{ github.event.repository.full_name }}
+#          src_tag: ${{ github.sha }}
+#          dst_tag: ${{ github.ref_name }}

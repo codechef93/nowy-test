@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: croatia-police
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: croatia-police
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: croatia-police
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: true
+  sources:
+    - repoURL: https://github.com/cloudbeds-integrations/croatia-police
+      path: _argocd/charts/croatia-police
+      targetRevision: main
+      helm:
+        releaseName: croatia-police
+        valueFiles:
+          - $values/_argocd/charts/croatia-police/values-dev.yaml
+        values: |
+          image:
+            tag: 09566dfca73ee76bf714a570088f69b66cae1193
+    - repoURL: https://github.com/cloudbeds-integrations/croatia-police
+      targetRevision: main
+      ref: values
