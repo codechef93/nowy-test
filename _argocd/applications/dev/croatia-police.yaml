@@ -25,7 +25,7 @@ spec:
           - $values/_argocd/charts/croatia-police/values-dev.yaml
         values: |
           image:
-            tag: 09566dfca73ee76bf714a570088f69b66cae1193
+            tag: 56e8a3dfb195a385fe2182025c6ccb02d252cd10
     - repoURL: https://github.com/cloudbeds-integrations/croatia-police
       targetRevision: main
       ref: values
