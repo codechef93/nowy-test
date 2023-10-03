@@ -93,7 +93,7 @@ def auth(code):
         else:
             return {"error": "propterty id not found in the response"}
     else:
-        return {"error": "API Key not found in the response"}
+        return {"error": json_response_auth['error'], "error_description": json_response_auth['error_description']}
   
 def reservations_property_id(property_id, params):
     return call_cb_endpoint_property_id('getReservations', 'get', property_id, params)
