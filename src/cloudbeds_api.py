@@ -92,8 +92,13 @@ def auth(code):
             return {"property_id": property_id, "api_key": api_key}
         else:
             return {"error": "propterty id not found in the response"}
+    elif 'error' in json_response_auth:
+        if 'error_description' in json_response_auth:
+            return {"error": json_response_auth['error'], "error_description": json_response_auth['error_description']}
+        else:
+            return {"error": json_response_auth['error'], "error_description": "There is no error description"}
     else:
-        return {"error": json_response_auth['error'], "error_description": json_response_auth['error_description']}
+        return {"error": "access_token is not found in the response"}
   
 def reservations_property_id(property_id, params):
     return call_cb_endpoint_property_id('getReservations', 'get', property_id, params)
