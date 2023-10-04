@@ -74,7 +74,7 @@ def auth(code):
 
     response_auth = requests.post(CLOUDBEDS_URL + 'access_token', data=token_data)   
     json_response_auth = response_auth.json()
-    # print(json_response_auth) 
+    print(json_response_auth) 
 
     if 'access_token' in json_response_auth:
         api_key = json_response_auth['access_token']
