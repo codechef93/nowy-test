@@ -25,4 +25,4 @@ spec:
         - values-dev.yaml
       values: |
         image:
-          tag: a6423e8752250134da079b3932832ae2e2b487a6
+          tag: 77f8758c19b0e53d4d6a4bad8a89e1b828bf5ac6
