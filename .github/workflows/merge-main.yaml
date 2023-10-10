@@ -41,8 +41,8 @@ jobs:
           file: ./docker/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.event.repository.full_name }}/${{ github.event.repository.name }}:${{ github.sha }}
-            ghcr.io/${{ github.event.repository.full_name }}/${{ github.event.repository.name }}:latest
+            ghcr.io/${{ github.event.repository.full_name }}/app:${{ github.sha }}
+            ghcr.io/${{ github.event.repository.full_name }}/app:latest
 
   deploy:
     name: Update ArgoCD deployment app

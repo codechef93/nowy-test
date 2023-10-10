@@ -6,20 +6,94 @@ on:
     tags:
       - 'v*'
 
+env:
+  CRANE_VERSION: v0.16.1
+  CRANE_SHA_HASH: 115dc84d14c5adc89c16e3fa297e94f06a9ec492bb1dc730da624850b77c9be2
+
 jobs:
 
   re-tag:
     name: Re-tag images
     runs-on: ubuntu-latest
+    environment: production
     permissions:
-      id-token: write
       contents: read
+      packages: write
     steps:
 
-      - name: Re-tag image with release version
-        run: echo "@todo"
-#        uses: cloudbeds/composite-actions/docker/crane-re-tag/aws-ecr@v2
-#        with:
-#          image_name: ${{ github.event.repository.full_name }}
-#          src_tag: ${{ github.sha }}
-#          dst_tag: ${{ github.ref_name }}
+      - name: Login to Container Registry
+        # Release v3.0.0 https://github.com/docker/login-action/commit/343f7c4344506bcbf9b4de18042ae17996df046d
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install crane
+        run: |
+          set -ex
+          echo "Installing crane version ${{ env.CRANE_VERSION }}"
+          curl -sLO https://github.com/google/go-containerregistry/releases/download/${{ env.CRANE_VERSION }}/go-containerregistry_Linux_x86_64.tar.gz
+          echo "${{ env.CRANE_SHA_HASH }} go-containerregistry_Linux_x86_64.tar.gz" | sha256sum -c
+          sudo tar -xzf ./go-containerregistry_Linux_x86_64.tar.gz -C /usr/local/bin crane
+          rm ./go-containerregistry_Linux_x86_64.tar.gz
+
+      - name: Re-tag image(s)
+        run: |
+          crane tag "ghcr.io/${{ github.event.repository.full_name }}/app:${{ github.sha }}" "${{ github.ref_name }}"
+
+  deploy:
+    name: Update ArgoCD deployment app
+    runs-on: ubuntu-latest
+    needs:
+      - re-tag
+    permissions:
+      contents: write
+    steps:
+
+      - name: Check out the repo
+        uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - name: Update application values image.tag
+        id: update-image-tag
+        run: |
+          sed -i "/tag: /s/:.*/: ${{ github.ref_name }}/g" "_argocd/applications/prod/${{ github.event.repository.name }}.yaml"
+          cat "_argocd/applications/prod/${{ github.event.repository.name }}.yaml"
+          if [[ "$(git status --porcelain)" == "" ]]; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          git config --global user.name '${{ github.actor }}'
+          git config --global user.email 'github-cicd@cloudbeds.com'
+          git add -A
+          git commit -m "[automated commit] ${{ github.event.repository.name }} update image tag ${{ github.sha }}"
+          echo "has-changes=true" >> $GITHUB_OUTPUT
+
+      - name: Push changes
+        if: steps.update-image-tag.outputs.has-changes == 'true'
+        uses: ad-m/github-push-action@40bf560936a8022e68a3c00e7d2abefaf01305a6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
+
+      - name: Argocd sync
+        env:
+          ARGOCD_PROJECT_BOOTSTRAP_APP: ${{ github.event.repository.name }}-bootstrap
+          ARGOCD_SERVER: ${{ vars.ARGOCD_PROD_SERVER_EKS_SVC }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_PROD_API_SYNC_TOKEN }}
+          ARGOCD_OPTS: "--grpc-web"
+          ARGOCD_SYNC_TIMEOUT: 300
+        run: |
+          # Download argocd binary
+          curl -s "https://${ARGOCD_SERVER}/download/argocd-linux-amd64" -o argocd
+          sudo install argocd /usr/local/bin
+
+          # Refresh project bootstrap app to get latest changes
+          argocd app get --refresh "${ARGOCD_PROJECT_BOOTSTRAP_APP}" > /dev/null
+
+          # WAIT for previous operation to complete, SYNC app and WAIT till app is in healthy status or fail if timeout exceeds
+          argocd app wait "${ARGOCD_PROJECT_BOOTSTRAP_APP}" --operation && \
+            argocd app sync "${ARGOCD_PROJECT_BOOTSTRAP_APP}" --resource "argoproj.io:Application:${{ github.event.repository.name }}" && \
+            argocd app wait "${{ github.event.repository.name }}" --sync --health --timeout "$ARGOCD_SYNC_TIMEOUT"

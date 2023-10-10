@@ -1,0 +1,72 @@
+name: Helmchart validate & release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '_argocd/charts/**'
+
+env:
+  KUBERNETES_VERSION: 1.27.6
+  KUBECONFORM_VERSION: v0.6.3
+  KUBECONFORM_CHECKSUM: 478604fe85c711aafe8ef78c0bf25cb93fa46de5a3c07040f25a595096c43f8a
+
+
+jobs:
+  build:
+    name: Validate and release helm chart if new version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+
+      - name: Check out the repo
+        # v4.1.0 https://github.com/actions/checkout/commit/8ade135a41bc03ea155e62e844d188df1ea18608
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        # v3.5 https://github.com/Azure/setup-helm/commit/5119fcb9089d432beecbf79bb2c7915207344b78
+        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3.5
+        with:
+          version: v3.12.3
+
+      - name: Install kubeconform
+        run: |
+          echo "Installing kubeconform version ${{ env.KUBECONFORM_VERSION }}"
+          curl -sLO https://github.com/yannh/kubeconform/releases/download/${{ env.KUBECONFORM_VERSION }}/kubeconform-linux-amd64.tar.gz
+          echo "${{ env.KUBECONFORM_CHECKSUM }} kubeconform-linux-amd64.tar.gz" | sha256sum -c
+          sudo tar -xzf ./kubeconform-linux-amd64.tar.gz -C /usr/local/bin kubeconform
+          rm ./kubeconform-linux-amd64.tar.gz
+
+      - name: Run helm validation
+        run: |
+          cd "${{ github.workspace }}/_argocd/charts/${{ github.event.repository.name }}"
+          helm dependency update ./
+          for valueFile in *values*.yaml; do
+            helm template ${{ github.event.repository.name }} -f "${valueFile}" ./ > "/tmp/${valueFile}"
+            kubeconform -strict -exit-on-error -verbose -ignore-missing-schemas -summary -kubernetes-version "${{ env.KUBERNETES_VERSION }}" \
+              -schema-location 'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/{{ .NormalizedKubernetesVersion }}-standalone{{ .StrictSuffix }}/{{ .ResourceKind }}{{ .KindSuffix }}.json' \
+              "/tmp/${valueFile}"
+          done
+
+      - name: Check if Chart.yaml file has change
+        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50
+        # v2.11.1 https://github.com/dorny/paths-filter/commit/4512585405083f25c027a35db413c2b3b9006d50
+        id: changes
+        with:
+          filters: |
+            src:
+              - '_argocd/charts/${{ github.event.repository.name }}/Chart.yaml'
+
+      - name: Create helm chart relase git tag
+        if: steps.changes.outputs.src == 'true'
+        run: |
+          cd "${{ github.workspace }}/_argocd/charts/${{ github.event.repository.name }}"
+          CHART_VERSION=$(cat Chart.yaml | yq '.version')
+          git config --global user.name '${{ github.actor }}'
+          git config --global user.email 'github-cicd@cloudbeds.com'
+          git tag -a "chart-${CHART_VERSION}"  -m "[automated]] Helm chart release version ${CHART_VERSION}"
+          git push origin "chart-${CHART_VERSION}"

@@ -4,6 +4,14 @@ metadata:
   name: {{ include "croatia-police.fullname" . }}
   labels:
     {{- include "croatia-police.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.deploymentAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- range .Values.vaultSecrets }}
+    {{- $key := ( . | replace $.Release.Name "" | replace "/" "" ) }}
+    secret.reloader.stakater.com/reload: {{ include "croatia-police.fullname" $ }}-{{ $key }}
+    {{- end }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
@@ -31,7 +39,7 @@ spec:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- if .Values.vaultSecrets }}
           envFrom:
