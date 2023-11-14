@@ -1,0 +1,8 @@
+helm:
+  parameters:
+  - name: image.name
+    value: ghcr.io/cloudbeds-integrations/croatia-police/app
+    forcestring: true
+  - name: image.tag
+    value: 2e68b67a722a98d03b270ac438fe779e74036d0a
+    forcestring: true
