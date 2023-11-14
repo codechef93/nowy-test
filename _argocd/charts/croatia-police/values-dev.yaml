@@ -4,6 +4,9 @@
 
 replicaCount: 1
 
+image:
+  tag: 77f8758c19b0e53d4d6a4bad8a89e1b828bf5ac6
+
 imagePullSecrets:
   - name: ghcr-pull-secret
 

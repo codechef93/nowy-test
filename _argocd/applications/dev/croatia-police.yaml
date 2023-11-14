@@ -3,8 +3,8 @@ kind: Application
 metadata:
   name: croatia-police
   namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
+#  finalizers:
+#    - resources-finalizer.argocd.argoproj.io
 spec:
   project: croatia-police
   destination:
@@ -23,6 +23,3 @@ spec:
       releaseName: croatia-police
       valueFiles:
         - values-dev.yaml
-      values: |
-        image:
-          tag: 77f8758c19b0e53d4d6a4bad8a89e1b828bf5ac6
