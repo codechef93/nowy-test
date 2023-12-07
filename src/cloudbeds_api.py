@@ -1,5 +1,4 @@
 import json
-import redis
 import requests
 
 CLIENT_ID = 'croatia_police_report_Sy1gfLEMQc6DFR8AairY9Chm'
@@ -63,7 +62,6 @@ def call_cb_endpoint(endpoint, method, api_key, params):
         return response
 
 def auth(code):
-
     token_data = {
         "grant_type": "urn:ietf:params:oauth:grant-type:api-key",
         "code": code,
@@ -72,7 +70,7 @@ def auth(code):
         "client_secret": CLIENT_SECRET
     }    
 
-    response_auth = requests.post(CLOUDBEDS_URL + 'access_token', data=token_data)   
+    response_auth = requests.post(CLOUDBEDS_URL + 'access_token', data=token_data)
     json_response_auth = response_auth.json()
     print(json_response_auth) 
 
@@ -96,7 +94,7 @@ def auth(code):
         if 'error_description' in json_response_auth:
             return {"error": json_response_auth['error'], "error_description": json_response_auth['error_description']}
         else:
-            return {"error": json_response_auth['error'], "error_description": "There is no error description"}
+            return {"error": json_response_auth['error']}
     else:
         return {"error": "access_token is not found in the response"}
   
@@ -104,7 +102,7 @@ def reservations_property_id(property_id, params):
     return call_cb_endpoint_property_id('getReservations', 'get', property_id, params)
 
 def hotels_property_id(property_id, params):
-    return call_cb_endpoint_property_id('getHotels', 'get', property_id, params)    
+    return call_cb_endpoint_property_id('getHotels', 'get', property_id, params)
 
 def reservations(api_key, params):
     return call_cb_endpoint('getReservations', 'get', api_key, params)
@@ -114,4 +112,29 @@ def hotels(api_key, params):
    
 def guest_list(api_key, params):
     return call_cb_endpoint('getGuestList', 'get', api_key, params)
-   
+
+def get_reservation(property_id, reservation_id, api_key, params):
+    params = {
+        'propertyID': property_id,
+        'reservationID': reservation_id
+    }
+    return call_cb_endpoint('getreservation', 'get', api_key, params)
+
+def post_webhook(property_id: int, object: str, action: str, api_key):
+    form_data = {
+        "propertyID": property_id,
+        "object": object,
+        "action": action,
+        "endpointUrl": 'https://croatia-police.app-integrations.cloudbeds-dev.com/callback-webhook'
+    }
+    headers={
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': len(form_data),
+        'x-api-key': api_key
+    }
+    response = requests.post(
+        f"{CLOUDBEDS_URL}/postWebhook?propertyID={property_id}",
+        headers = headers,
+        data = form_data
+    )
+    return response.json()
