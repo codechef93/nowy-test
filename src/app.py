@@ -6,8 +6,8 @@ from datetime import datetime
 import redis
 import cloudbeds_api
 import evisitor_api
+import json
 
-# TEMP_CROATIA_API_KEY = 'cbat_FZKDFEyGhoE42DWsvde9gDqZxc5Z48mn'
 redisClient = redis.Redis(host=os.getenv('REDIS_HOST'),
                 port=os.getenv('REDIS_PORT', 6379),
                 password=os.getenv('REDIS_AUTH'),
@@ -80,14 +80,14 @@ def guest_list(property_id: str):
         result = cloudbeds_api.guest_list(api_key, {property_id: property_id})
         return {"guest_list_result": result.json()}
     
-@app.post("/post-webhook")
+@app.get("/post-webhook")
 def post_webhook(property_id: str, objectname:str, action:str):
     api_key = redisClient.get(property_id) 
     if api_key is None:
         return {"error": 'There is no API key for this property id.'}
     else:
         result = cloudbeds_api.post_webhook(property_id, objectname, action, api_key)
-        return {"guest_list_result": result.json()}
+        return result.json()
 
 
 @app.post("/callback-webhook", status_code=200)
@@ -104,17 +104,22 @@ async def handle_webhook(request: Request): #request need to redefine
             status_code=401, content={"message": "Police's log => Invalid propertyID"}
         )
 
-    if event == 'reservation/created':
-        result = evisitor_api.checkin(payload, apikey)
-    elif event == 'reservation/status_changed':
-        if(payload['status'] == 'checked_in'):
-            result = evisitor_api.checkin(payload, apikey)
-        elif(payload['status'] == 'checked_out'):
-            result = evisitor_api.checkout(payload, apikey)
-    elif event == 'reservation/deleted':
-        print('reservation_deleted')
-    elif event == 'reservation/dates_changed':
-        print('reservation_dates_changed')
+    # if event == 'reservation/created':
+    #     result = evisitor_api.checkin(payload, apikey)
+    if event == 'reservation/status_changed' or event == 'reservation/dates_changed':
+        cookies = evisitor_api.login()
+        if event == 'reservation/status_changed':
+            if(payload['status'] == 'checked_in'):
+                result = evisitor_api.checkin(payload, apikey, cookies)
+            elif(payload['status'] == 'checked_out'):
+                result = evisitor_api.checkout(payload, apikey, cookies)
+            elif(payload['status'] == 'canceled'):
+                result = evisitor_api.cancelCheckin(payload, apikey, cookies)
+        # elif event == 'reservation/deleted':
+        #     print('reservation_deleted')
+        elif event == 'reservation/dates_changed':
+            result = evisitor_api.datechanged(payload, apikey, cookies, False)
+        evisitor_api.logout(cookies)
     else:
         print('reservation other event')
         return JSONResponse(
@@ -124,10 +129,39 @@ async def handle_webhook(request: Request): #request need to redefine
 
 @app.get("/all-clear-redis")
 def all_clear_redis(payerpin: str): # payerpin is the same as account username(/PIN)
-    app.redisClient.delete(f"evisitor_ttpayer_{payerpin}", f"evisitor_facility_{payerpin}", f"evisitor_accommodationUnitType_{payerpin}", f"evisitor_ttpaymentCategory")
+    redisClient.delete(f"evisitor_ttpayer_{payerpin}", f"evisitor_facility_{payerpin}", f"evisitor_accommodationUnitType_{payerpin}", "evisitor_account")
     return 'All is cleared'
 
 @app.get("/login-evisitor")
-def login_evisitor(username:str, password:str, apikey:str):
-    evisitor_api.login(username, password, apikey)
-    return 'login succeed'
+def login_evisitor():
+    login = evisitor_api.login()
+    return login
+
+@app.get("/get-reservation")
+def get_reservation(property_id:str, reservation_id:str):
+    api_key = redisClient.get(property_id)
+    if api_key is None:
+        return {"error": 'There is no API key for this property id.'}
+    else:
+        result = cloudbeds_api.get_reservation(property_id, reservation_id, api_key)
+        reservation_json = result.json()
+        print('reservation:', reservation_json)
+        if reservation_json['success'] == False:
+            return {'error': 'reservation not exists in cloudbeds'}
+        i = 0
+        guestList = reservation_json['data']['guestList']
+        print('guestList:', guestList)
+        for key in guestList:
+            guest = guestList[key]
+            # print('guest:', guest['guestLastName'])
+        return result.json()
+
+@app.get("/set-accountInfo")
+def get_tourist(userName:str, password:str, apikey:str):
+    auth = {
+        'UserName': userName,
+        'Password': password,
+        'Apikey': apikey
+    }
+    redisClient.set('evisitor_account', json.dumps(auth))
+    return {'success': auth}

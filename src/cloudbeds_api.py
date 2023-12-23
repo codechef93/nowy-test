@@ -52,7 +52,9 @@ def call_cb_endpoint_property_id(endpoint, method, property_id, params):
 def call_cb_endpoint(endpoint, method, api_key, params): 
 
     url = CLOUDBEDS_URL + endpoint
-    headers={"x-api-key": api_key}
+    headers={"x-api-key": api_key,
+    "Content-Type": "application/json"
+    }
 
     if method == 'get':
         response = requests.get(url, params=params, headers=headers)
@@ -86,6 +88,11 @@ def auth(code):
 
             property_id = json_response_property['data'][0]['propertyID']
             save_secret('cloudbeds', property_id, api_key)
+
+            # subscribe to relevant webhooks for this property.
+            post_webhook(property_id, "reservation", "status_changed", api_key) 
+
+            post_webhook(property_id, "reservation", "dates_changed", api_key) 
             
             return {"property_id": property_id, "api_key": api_key}
         else:
@@ -113,28 +120,37 @@ def hotels(api_key, params):
 def guest_list(api_key, params):
     return call_cb_endpoint('getGuestList', 'get', api_key, params)
 
-def get_reservation(property_id, reservation_id, api_key, params):
+def call_cb_endpoint(endpoint, method, api_key, params): 
+    url = CLOUDBEDS_URL + endpoint
+    headers={"x-api-key": api_key}
+
+    if method == 'get':
+        response = requests.get(url, params=params, headers=headers)
+        return response
+    elif method == 'post':
+        response = requests.post(url, data=params, headers=headers)
+        return response  
+
+def get_reservation(property_id, reservation_id, api_key):
     params = {
         'propertyID': property_id,
         'reservationID': reservation_id
     }
-    return call_cb_endpoint('getreservation', 'get', api_key, params)
+    return call_cb_endpoint('getReservation', 'get', api_key, params)
 
-def post_webhook(property_id: int, object: str, action: str, api_key):
-    form_data = {
+def get_reservation(property_id, reservation_id, api_key):
+    params = {
+        'propertyID': property_id,
+        'reservationID': reservation_id
+    }
+    return call_cb_endpoint('getReservation', 'get', api_key, params)
+
+def post_webhook(property_id: int, object1: str, action: str, api_key):
+    params = {
         "propertyID": property_id,
-        "object": object,
+        "object": object1,
         "action": action,
-        "endpointUrl": 'https://croatia-police.app-integrations.cloudbeds-dev.com/callback-webhook'
+        "endpointUrl": "https://croatia-police.app-integrations.cloudbeds-dev.com/callback-webhook"
     }
-    headers={
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': len(form_data),
-        'x-api-key': api_key
-    }
-    response = requests.post(
-        f"{CLOUDBEDS_URL}/postWebhook?propertyID={property_id}",
-        headers = headers,
-        data = form_data
-    )
-    return response.json()
+    print(object1, action, api_key)
+    return call_cb_endpoint('postWebhook', 'post', api_key, params)
